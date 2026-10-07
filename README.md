@@ -110,7 +110,7 @@ sast-vs-llm gives each of these questions its own component. Each component has 
 | Providers | OpenAI-compatible servers (OpenAI, LM Studio, Ollama, vLLM) and Gemini. All optional |
 | Offline mode | `builtin`, `tests` and the simulated reviewer. No key, no network, no tool installation |
 | Safety | Labels resolve from anchors. Raw results carry the SHA-256 of the sample. Ungrounded LLM fields are dropped |
-| Tests | **87** pass and **1** skips without Bandit (`pytest`). With the `sast` extra, all **88** pass |
+| Tests | **88** unit tests (`pytest`). CI installs only `.[dev]`: **87** pass and **1** skips (Bandit). With the `sast` extra: 88 pass |
 
 ```mermaid
 flowchart LR
@@ -557,7 +557,7 @@ Planned milestones (not built):
 
 | Validation | Result | Command |
 |---|---|---|
-| Unit tests, clean venv with `pip install -e ".[dev]"` (as in CI) | **87 passed, 1 skipped** | `pytest -q` |
+| Unit tests (CI installs only `.[dev]`) | **87 passed, 1 skipped** (the Bandit test) | `pytest -q` |
 | Unit tests with the `sast` extra | **88 passed** | `pytest -q` |
 | Corpus check | 30 samples, 23 labels, 30 unit tests, 376 lines, 0 problems | `sast-vs-llm corpus` |
 
