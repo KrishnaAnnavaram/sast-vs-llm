@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sast-vs-llm"
+version = "0.1.0"
+description = "Static analyzers vs LLMs: which reviews code better?"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Krishna Annavaram" }]
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+sast = ["bandit>=1.7.7", "pylint>=3.0", "ruff>=0.4"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+sast-vs-llm = "sast_vs_llm.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sast_vs_llm = ["corpus/manifest.json", "corpus/samples/*.py", "prompts/*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

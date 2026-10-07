@@ -1,0 +1,918 @@
+{
+ "corpus_version": "1.0",
+ "samples": [
+  {
+   "id": "anagram_functions",
+   "file": "samples/anagram_functions.py",
+   "problem": "valid_anagram",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "buggy",
+   "labels": [
+    {
+     "category": "correctness",
+     "rule": "BUG-hardcoded-case",
+     "anchor": "if first.endswith(\"zz\"):",
+     "span": 2,
+     "note": "special case returns True for any input that ends with zz"
+    }
+   ],
+   "tests": [
+    {
+     "call": "is_anagram",
+     "args": [
+      "listen",
+      "silent"
+     ],
+     "expected": true
+    },
+    {
+     "call": "is_anagram",
+     "args": [
+      "rat",
+      "car"
+     ],
+     "expected": false
+    },
+    {
+     "call": "is_anagram",
+     "args": [
+      "abzz",
+      "cdzz"
+     ],
+     "expected": false
+    }
+   ]
+  },
+  {
+   "id": "anagram_class",
+   "file": "samples/anagram_class.py",
+   "problem": "valid_anagram",
+   "difficulty": "easy",
+   "style": "class",
+   "kind": "buggy",
+   "labels": [
+    {
+     "category": "correctness",
+     "rule": "BUG-wrong-comparison",
+     "anchor": "left = sorted(first.count(ch) for ch in set(first))",
+     "span": 3,
+     "note": "compares the multiset of counts and ignores which letter has which count"
+    }
+   ],
+   "tests": [
+    {
+     "call": "is_anagram",
+     "args": [
+      "listen",
+      "silent"
+     ],
+     "expected": true,
+     "class": "AnagramChecker"
+    },
+    {
+     "call": "is_anagram",
+     "args": [
+      "aab",
+      "abb"
+     ],
+     "expected": false,
+     "class": "AnagramChecker"
+    }
+   ]
+  },
+  {
+   "id": "anagram_optimized",
+   "file": "samples/anagram_optimized.py",
+   "problem": "valid_anagram",
+   "difficulty": "easy",
+   "style": "optimized",
+   "kind": "clean",
+   "labels": [],
+   "tests": [
+    {
+     "call": "is_anagram",
+     "args": [
+      "listen",
+      "silent"
+     ],
+     "expected": true
+    },
+    {
+     "call": "is_anagram",
+     "args": [
+      "aab",
+      "abb"
+     ],
+     "expected": false
+    },
+    {
+     "call": "is_anagram",
+     "args": [
+      "abzz",
+      "cdzz"
+     ],
+     "expected": false
+    }
+   ]
+  },
+  {
+   "id": "majority_functions",
+   "file": "samples/majority_functions.py",
+   "problem": "majority_element_ii",
+   "difficulty": "medium",
+   "style": "functions",
+   "kind": "clean",
+   "labels": [],
+   "tests": [
+    {
+     "call": "majority_elements",
+     "args": [
+      [
+       3,
+       2,
+       3
+      ]
+     ],
+     "expected": [
+      3
+     ]
+    },
+    {
+     "call": "majority_elements",
+     "args": [
+      [
+       1,
+       2
+      ]
+     ],
+     "expected": [
+      1,
+      2
+     ]
+    },
+    {
+     "call": "majority_elements",
+     "args": [
+      [
+       1,
+       2,
+       3
+      ]
+     ],
+     "expected": []
+    }
+   ]
+  },
+  {
+   "id": "majority_class",
+   "file": "samples/majority_class.py",
+   "problem": "majority_element_ii",
+   "difficulty": "medium",
+   "style": "class",
+   "kind": "smelly",
+   "labels": [
+    {
+     "category": "maintainability",
+     "rule": "SMELL-mutable-default",
+     "anchor": "def find(self, nums, ignore=[]):",
+     "span": 1,
+     "note": "a list as a default value is shared between calls"
+    }
+   ],
+   "tests": [
+    {
+     "call": "find",
+     "args": [
+      [
+       3,
+       2,
+       3
+      ]
+     ],
+     "expected": [
+      3
+     ],
+     "class": "MajorityFinder"
+    },
+    {
+     "call": "find",
+     "args": [
+      [
+       1,
+       2,
+       3
+      ]
+     ],
+     "expected": [],
+     "class": "MajorityFinder"
+    }
+   ]
+  },
+  {
+   "id": "majority_optimized",
+   "file": "samples/majority_optimized.py",
+   "problem": "majority_element_ii",
+   "difficulty": "medium",
+   "style": "optimized",
+   "kind": "buggy",
+   "labels": [
+    {
+     "category": "correctness",
+     "rule": "BUG-off-by-one",
+     "anchor": "if cand is not None and nums.count(cand) >= len(nums) // 3:",
+     "span": 1,
+     "note": "uses >= instead of >, so a value with exactly n/3 occurrences is returned"
+    }
+   ],
+   "tests": [
+    {
+     "call": "majority_elements",
+     "args": [
+      [
+       3,
+       2,
+       3
+      ]
+     ],
+     "expected": [
+      3
+     ]
+    },
+    {
+     "call": "majority_elements",
+     "args": [
+      [
+       1,
+       2,
+       3
+      ]
+     ],
+     "expected": []
+    }
+   ]
+  },
+  {
+   "id": "wordsearch_functions",
+   "file": "samples/wordsearch_functions.py",
+   "problem": "word_search_ii",
+   "difficulty": "hard",
+   "style": "functions",
+   "kind": "smelly",
+   "labels": [
+    {
+     "category": "maintainability",
+     "rule": "SMELL-deep-nesting",
+     "anchor": "if 0 <= nr < rows:",
+     "span": 5,
+     "note": "five nested blocks in one loop"
+    }
+   ],
+   "tests": [
+    {
+     "call": "find_words",
+     "args": [
+      [
+       [
+        "o",
+        "a",
+        "a",
+        "n"
+       ],
+       [
+        "e",
+        "t",
+        "a",
+        "e"
+       ],
+       [
+        "i",
+        "h",
+        "k",
+        "r"
+       ],
+       [
+        "i",
+        "f",
+        "l",
+        "v"
+       ]
+      ],
+      [
+       "oath",
+       "pea",
+       "eat",
+       "rain"
+      ]
+     ],
+     "expected": [
+      "eat",
+      "oath"
+     ]
+    },
+    {
+     "call": "find_words",
+     "args": [
+      [
+       [
+        "a",
+        "b"
+       ],
+       [
+        "c",
+        "d"
+       ]
+      ],
+      [
+       "abcb"
+      ]
+     ],
+     "expected": []
+    }
+   ]
+  },
+  {
+   "id": "wordsearch_class",
+   "file": "samples/wordsearch_class.py",
+   "problem": "word_search_ii",
+   "difficulty": "hard",
+   "style": "class",
+   "kind": "clean",
+   "labels": [],
+   "tests": [
+    {
+     "call": "find_words",
+     "args": [
+      [
+       [
+        "o",
+        "a",
+        "a",
+        "n"
+       ],
+       [
+        "e",
+        "t",
+        "a",
+        "e"
+       ],
+       [
+        "i",
+        "h",
+        "k",
+        "r"
+       ],
+       [
+        "i",
+        "f",
+        "l",
+        "v"
+       ]
+      ],
+      [
+       "oath",
+       "pea",
+       "eat",
+       "rain"
+      ]
+     ],
+     "expected": [
+      "eat",
+      "oath"
+     ],
+     "class": "WordSearch"
+    },
+    {
+     "call": "find_words",
+     "args": [
+      [
+       [
+        "a",
+        "b"
+       ],
+       [
+        "c",
+        "d"
+       ]
+      ],
+      [
+       "abcb"
+      ]
+     ],
+     "expected": [],
+     "class": "WordSearch"
+    }
+   ]
+  },
+  {
+   "id": "wordsearch_optimized",
+   "file": "samples/wordsearch_optimized.py",
+   "problem": "word_search_ii",
+   "difficulty": "hard",
+   "style": "optimized",
+   "kind": "clean",
+   "labels": [],
+   "tests": [
+    {
+     "call": "find_words",
+     "args": [
+      [
+       [
+        "o",
+        "a",
+        "a",
+        "n"
+       ],
+       [
+        "e",
+        "t",
+        "a",
+        "e"
+       ],
+       [
+        "i",
+        "h",
+        "k",
+        "r"
+       ],
+       [
+        "i",
+        "f",
+        "l",
+        "v"
+       ]
+      ],
+      [
+       "oath",
+       "pea",
+       "eat",
+       "rain"
+      ]
+     ],
+     "expected": [
+      "eat",
+      "oath"
+     ]
+    },
+    {
+     "call": "find_words",
+     "args": [
+      [
+       [
+        "a",
+        "b"
+       ],
+       [
+        "c",
+        "d"
+       ]
+      ],
+      [
+       "abcb"
+      ]
+     ],
+     "expected": []
+    }
+   ]
+  },
+  {
+   "id": "ping_host",
+   "file": "samples/ping_host.py",
+   "problem": "network_check",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-78",
+     "anchor": "return os.system(f\"ping -c 1 {host}\")",
+     "span": 1,
+     "note": "host goes into a shell command"
+    }
+   ],
+   "tests": []
+  },
+  {
+   "id": "archive_logs",
+   "file": "samples/archive_logs.py",
+   "problem": "log_archive",
+   "difficulty": "medium",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-78",
+     "anchor": "result = subprocess.run(command, shell=True, capture_output=True, text=True)",
+     "span": 1,
+     "note": "user text in a shell=True command"
+    }
+   ],
+   "tests": []
+  },
+  {
+   "id": "user_lookup",
+   "file": "samples/user_lookup.py",
+   "problem": "user_lookup",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-89",
+     "anchor": "cur = conn.execute(f\"SELECT id, email FROM users WHERE name = '{username}'\")",
+     "span": 1,
+     "note": "SQL built with an f-string"
+    }
+   ],
+   "tests": []
+  },
+  {
+   "id": "calculator",
+   "file": "samples/calculator.py",
+   "problem": "calculator",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-95",
+     "anchor": "return eval(expression)",
+     "span": 1,
+     "note": "eval of user input"
+    }
+   ],
+   "tests": [
+    {
+     "call": "evaluate",
+     "args": [
+      "2+3"
+     ],
+     "expected": 5
+    }
+   ]
+  },
+  {
+   "id": "session_store",
+   "file": "samples/session_store.py",
+   "problem": "session_cookie",
+   "difficulty": "medium",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-502",
+     "anchor": "return pickle.loads(raw)",
+     "span": 1,
+     "note": "pickle of data from the client"
+    }
+   ],
+   "tests": []
+  },
+  {
+   "id": "config_loader",
+   "file": "samples/config_loader.py",
+   "problem": "config_upload",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-502",
+     "anchor": "return yaml.load(text)",
+     "span": 1,
+     "note": "yaml.load without a safe loader"
+    }
+   ],
+   "tests": []
+  },
+  {
+   "id": "db_settings",
+   "file": "samples/db_settings.py",
+   "problem": "service_config",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-798",
+     "anchor": "DB_PASSWORD = \"change-me-2931\"",
+     "span": 1,
+     "note": "credential in source code"
+    }
+   ],
+   "tests": [
+    {
+     "call": "connection_string",
+     "args": [
+      "db"
+     ],
+     "expected": "postgresql://report_service:change-me-2931@db:5432/reports"
+    }
+   ]
+  },
+  {
+   "id": "password_hash",
+   "file": "samples/password_hash.py",
+   "problem": "password_storage",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-328",
+     "anchor": "return hashlib.md5(password.encode(\"utf-8\")).hexdigest()",
+     "span": 1,
+     "note": "MD5 for passwords"
+    }
+   ],
+   "tests": [
+    {
+     "call": "hash_password",
+     "args": [
+      "a"
+     ],
+     "expected": "0cc175b9c0f1b6a831c399e269772661"
+    }
+   ]
+  },
+  {
+   "id": "reset_token",
+   "file": "samples/reset_token.py",
+   "problem": "password_reset",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-330",
+     "anchor": "return \"\".join(random.choice(ALPHABET) for _ in range(length))",
+     "span": 1,
+     "note": "random is not a secure generator"
+    }
+   ],
+   "tests": []
+  },
+  {
+   "id": "file_download",
+   "file": "samples/file_download.py",
+   "problem": "file_download",
+   "difficulty": "medium",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-22",
+     "anchor": "path = os.path.join(BASE_DIR, filename)",
+     "span": 2,
+     "note": "no check that the path stays in BASE_DIR"
+    }
+   ],
+   "tests": []
+  },
+  {
+   "id": "fetch_status",
+   "file": "samples/fetch_status.py",
+   "problem": "partner_api",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-295",
+     "anchor": "response = requests.get(url, timeout=10, verify=False)",
+     "span": 1,
+     "note": "TLS certificate check off"
+    }
+   ],
+   "tests": []
+  },
+  {
+   "id": "temp_report",
+   "file": "samples/temp_report.py",
+   "problem": "report_export",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-377",
+     "anchor": "path = tempfile.mktemp(suffix=\".txt\")",
+     "span": 1,
+     "note": "mktemp has a race condition"
+    }
+   ],
+   "tests": []
+  },
+  {
+   "id": "admin_check",
+   "file": "samples/admin_check.py",
+   "problem": "admin_action",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-617",
+     "anchor": "assert user.get(\"is_admin\"), \"administrators only\"",
+     "span": 1,
+     "note": "python -O removes the assert, so the check disappears"
+    }
+   ],
+   "tests": [
+    {
+     "call": "delete_account",
+     "args": [
+      {
+       "is_admin": true
+      },
+      "a1"
+     ],
+     "expected": "deleted a1"
+    }
+   ]
+  },
+  {
+   "id": "order_search",
+   "file": "samples/order_search.py",
+   "problem": "order_search",
+   "difficulty": "medium",
+   "style": "functions",
+   "kind": "vulnerable",
+   "labels": [
+    {
+     "category": "security",
+     "rule": "CWE-798",
+     "anchor": "API_TOKEN = \"orders-token-7781-internal\"",
+     "span": 1,
+     "note": "token in source code"
+    },
+    {
+     "category": "security",
+     "rule": "CWE-89",
+     "anchor": "query = \"SELECT id, total FROM orders WHERE customer = '%s' AND status = '%s'\" % (customer, status)",
+     "span": 2,
+     "note": "SQL built with % formatting"
+    }
+   ],
+   "tests": []
+  },
+  {
+   "id": "ping_safe",
+   "file": "samples/ping_safe.py",
+   "problem": "network_check",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "clean",
+   "labels": [],
+   "tests": []
+  },
+  {
+   "id": "user_lookup_safe",
+   "file": "samples/user_lookup_safe.py",
+   "problem": "user_lookup",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "clean",
+   "labels": [],
+   "tests": []
+  },
+  {
+   "id": "calculator_safe",
+   "file": "samples/calculator_safe.py",
+   "problem": "calculator",
+   "difficulty": "medium",
+   "style": "functions",
+   "kind": "clean",
+   "labels": [],
+   "tests": [
+    {
+     "call": "evaluate",
+     "args": [
+      "2*(3+4)"
+     ],
+     "expected": 14
+    },
+    {
+     "call": "evaluate",
+     "args": [
+      "-1+2"
+     ],
+     "expected": 1
+    }
+   ]
+  },
+  {
+   "id": "password_hash_safe",
+   "file": "samples/password_hash_safe.py",
+   "problem": "password_storage",
+   "difficulty": "medium",
+   "style": "functions",
+   "kind": "clean",
+   "labels": [],
+   "tests": [
+    {
+     "call": "verify_password",
+     "args": [
+      "pw",
+      "00ff",
+      "x"
+     ],
+     "expected": false
+    }
+   ]
+  },
+  {
+   "id": "reset_token_safe",
+   "file": "samples/reset_token_safe.py",
+   "problem": "password_reset",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "clean",
+   "labels": [],
+   "tests": [
+    {
+     "call": "token_length",
+     "args": [
+      32
+     ],
+     "expected": 43
+    }
+   ]
+  },
+  {
+   "id": "file_download_safe",
+   "file": "samples/file_download_safe.py",
+   "problem": "file_download",
+   "difficulty": "medium",
+   "style": "functions",
+   "kind": "clean",
+   "labels": [],
+   "tests": []
+  },
+  {
+   "id": "report_formatter",
+   "file": "samples/report_formatter.py",
+   "problem": "report_text",
+   "difficulty": "easy",
+   "style": "functions",
+   "kind": "smelly",
+   "labels": [
+    {
+     "category": "maintainability",
+     "rule": "SMELL-shadow-builtin",
+     "anchor": "list = []",
+     "span": 1,
+     "note": "the name list hides the builtin"
+    },
+    {
+     "category": "maintainability",
+     "rule": "SMELL-unused-variable",
+     "anchor": "total = 0",
+     "span": 1,
+     "note": "total is never used"
+    },
+    {
+     "category": "maintainability",
+     "rule": "SMELL-bare-except",
+     "anchor": "except:",
+     "span": 1,
+     "note": "a bare except also catches KeyboardInterrupt"
+    }
+   ],
+   "tests": [
+    {
+     "call": "format_rows",
+     "args": [
+      [
+       [
+        "a",
+        "1"
+       ],
+       [
+        "b",
+        "x"
+       ]
+      ]
+     ],
+     "expected": [
+      "a: 1.00",
+      "b: n/a"
+     ]
+    }
+   ]
+  }
+ ]
+}
