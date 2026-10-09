@@ -69,6 +69,7 @@ This README is the **one location that explains all of sast-vs-llm**. It gives t
 4. 🔄 [The end-to-end workflow](#4-the-end-to-end-workflow)
    - 4.1 [Full flow](#41-full-flow)
    - 4.2 [The life cycle of one finding](#42-the-life-cycle-of-one-finding)
+   - 4.3 [Who does which step](#43-who-does-which-step)
 5. 🔵 [The labelled corpus](#5-the-labelled-corpus)
 6. 🟢 [The static analyzers](#6-the-static-analyzers)
 7. 🟣 [The LLM reviewer](#7-the-llm-reviewer)
@@ -141,6 +142,54 @@ flowchart LR
 | Settings | `src/sast_vs_llm/config.py` | Environment variables and the analyzer factory |
 | CLI | `src/sast_vs_llm/cli.py` | The `sast-vs-llm` command with 8 subcommands |
 
+The component map shows which module calls which module. An arrow points from the caller to the module that it uses.
+
+```mermaid
+flowchart TB
+    CLI["cli.py<br/>sast-vs-llm command"]
+    CFG["config.py<br/>Settings, build_analyzers, build_llm"]
+    COR["corpus.py<br/>load_corpus, check_corpus"]
+    subgraph ANALYZERS["Analyzers"]
+        BI["analyzers/builtin.py<br/>BuiltinAnalyzer, analyze_code"]
+        UT["analyzers/unit_tests.py<br/>UnitTestAnalyzer"]
+        EXT["analyzers/external.py<br/>Bandit, Pylint, Ruff, Semgrep"]
+        REV["review.py<br/>LLMReviewer, parse_review"]
+    end
+    LLM["llm.py<br/>OpenAI-compatible, Gemini,<br/>Scripted, Simulated"]
+    RUN["runner.py<br/>run_benchmark, load_results"]
+    SCO["scoring.py<br/>score, to_markdown"]
+    HYB["hybrid.py<br/>evaluate_hybrid, SimulatedTriage"]
+    BL["blind.py<br/>make_sheet, score_sheet"]
+    MAT["matching.py<br/>match"]
+    MET["metrics.py<br/>prf, wilson, Jaccard"]
+    FIN["findings.py<br/>Finding, RULES"]
+
+    CLI --> CFG
+    CLI --> COR
+    CLI --> RUN
+    CLI --> SCO
+    CLI --> HYB
+    CLI --> BL
+    CLI -- "analyze FILE" --> BI
+    CFG --> BI
+    CFG --> UT
+    CFG --> EXT
+    CFG --> REV
+    CFG --> LLM
+    REV --> LLM
+    RUN --> BI
+    RUN --> UT
+    RUN --> EXT
+    RUN --> REV
+    SCO --> MAT
+    SCO --> MET
+    HYB --> MAT
+    HYB --> MET
+    HYB --> LLM
+    MAT --> FIN
+    COR --> FIN
+```
+
 ### 2.2 System context
 
 ```mermaid
@@ -201,6 +250,22 @@ The parser accepts only six finding fields. Each other field, for example `cover
 ### 3.7 Accuracy and preference are separate
 The score report uses only matches against labels. The usefulness rating uses a blinded sheet, and a separate key file maps each item to its reviewer.
 
+```mermaid
+flowchart LR
+    RAW[("Raw results<br/>results/raw")] --> SC["score: match against labels"]
+    SC --> ACC[/"Accuracy: precision, recall, F1,<br/>false alarms, consistency"/]
+    RAW --> SH["blind-sheet: shuffled reviews,<br/>item ids R0001 and on"]
+    SH --> CSV[("ratings.csv<br/>no reviewer names")]
+    SH --> KEY[("ratings_key.json<br/>item id to analyzer")]
+    CSV --> HUMAN{{"HUMAN<br/>raters fill usefulness 1 to 5"}}
+    HUMAN --> BS["blind-score: join the ratings with the key"]
+    KEY --> BS
+    BS --> PREF[/"Preference: mean usefulness<br/>and 95 % interval for each analyzer"/]
+
+    classDef human fill:#fff3cd,stroke:#b8901f,color:#3d2f00,font-weight:bold
+    class HUMAN human
+```
+
 ### 3.8 Problems of the earlier study and their fixes
 
 | # | Problem in the earlier study | Fix in sast-vs-llm | Test |
@@ -221,26 +286,65 @@ The score report uses only matches against labels. The usefulness rating uses a 
 ### 4.1 Full flow
 
 ```mermaid
-flowchart TB
-    MAN["manifest.json + samples"] --> LOAD["load_corpus: resolve anchors, check rules"]
-    LOAD --> RUN["run_benchmark"]
-    RUN --> B["builtin"]
-    RUN --> T["tests (child process)"]
-    RUN --> X["bandit, pylint, ruff, semgrep (if installed)"]
-    RUN --> L["LLM reviewer x N repeats"]
-    B --> RAW["results/raw/*.json with SHA-256"]
+flowchart TD
+    MAN[/"manifest.json + samples<br/>or --corpus folder"/] --> LOAD{"load_corpus: resolve anchors,<br/>check_corpus rules pass?"}
+    LOAD -- "no" --> CE[/"CorpusError with each problem"/]
+    LOAD -- "yes" --> RUN["run_benchmark"]
+    RUN --> AV{"Analyzer available?"}
+    AV -- "no" --> SKIP["Skip, record not installed<br/>in results/manifest.json"]
+    AV -- "yes" --> B["builtin"]
+    AV -- "yes" --> T["tests (child process)"]
+    AV -- "yes" --> X["bandit, pylint, ruff, semgrep"]
+    AV -- "yes" --> L["LLM reviewer x N repeats"]
+    B --> RAW[("results/raw/*.json<br/>with SHA-256")]
     T --> RAW
     X --> RAW
     L --> RAW
-    RAW --> LR["load_results: refuse stale files"]
-    LR --> M["match: category, lines, rule"]
+    RAW --> LR{"load_results: SHA-256 same<br/>as the current sample?"}
+    LR -- "no" --> STALE[/"StaleResultError,<br/>unless --allow-stale"/]
+    LR -- "yes" --> M["match: category, lines, rule"]
     M --> S["score: P, R, F1, clean false alarms, slices, consistency"]
-    LR --> H["hybrid: LLM triage of SAST findings"]
-    LR --> BL["blind-sheet: shuffled reviews + key"]
-    BL --> RATE["human ratings"] --> BS["blind-score"]
+    S --> REP[/"Markdown score report"/]
+    LR -- "yes" --> H["hybrid: LLM triage of SAST findings"]
+    H --> HREP[/"Counts before and after the triage"/]
+    LR -- "yes" --> BL["blind-sheet: shuffled reviews + key"]
+    BL --> HUMAN{{"HUMAN<br/>raters fill ratings.csv"}}
+    HUMAN --> BS["blind-score"]
+    BS --> BREP[/"Mean usefulness for each analyzer"/]
+
+    classDef human fill:#fff3cd,stroke:#b8901f,color:#3d2f00,font-weight:bold
+    class HUMAN human
 ```
 
 ### 4.2 The life cycle of one finding
+
+```mermaid
+stateDiagram-v2
+    state "Finding in memory" as Found
+    state "Dropped by the parser" as Dropped
+    state "Stored in a raw result" as Stored
+    state "Loaded for scoring" as Loaded
+    state "Refused as stale" as Stale
+    state "Candidate pair with a label" as Candidate
+    state "True positive" as TP
+    state "False positive" as FP
+    [*] --> Found: analyzer.analyze(sample)
+    Found --> Dropped: LLM reply, unknown category or line outside the file
+    Found --> Stored: run_benchmark writes JSON with sample_sha256
+    Stored --> Stale: sample file changed
+    Stored --> Loaded: load_results, SHA-256 same
+    Stale --> Loaded: --allow-stale
+    Loaded --> Candidate: same category, lines overlap within tol
+    Loaded --> FP: no label in reach
+    Candidate --> TP: closest free pair accepted
+    Candidate --> FP: label already used
+    TP --> [*]
+    FP --> [*]
+    Stale --> [*]
+    Dropped --> [*]
+```
+
+A label that no finding takes is a false negative.
 
 1. The runner gives one sample to one analyzer.
 2. The analyzer returns a `Finding` with a category, a rule, a line range and a message.
@@ -250,11 +354,66 @@ flowchart TB
 6. A paired finding is a true positive. An unpaired finding is a false positive.
 7. Each unpaired label is a false negative.
 
+### 4.3 Who does which step
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor E as Engineer
+    participant CLI as sast-vs-llm CLI
+    participant COR as corpus.py
+    participant RUN as runner.py
+    participant REV as LLMReviewer
+    participant LLM as LLM client
+    participant FS as results/ folder
+    participant SCO as scoring.py
+
+    E->>CLI: run --analyzers builtin,tests,ruff,llm
+    CLI->>CLI: load_dotenv, Settings.from_env, build_analyzers
+    CLI->>COR: load_corpus
+    COR-->>CLI: samples with resolved labels
+    CLI->>RUN: run_benchmark(samples, analyzers, out, repeats)
+    loop each analyzer, each sample, each repeat of the LLM
+        RUN->>REV: analyze(sample, repeat)
+        REV->>LLM: complete(review_v1, numbered code, seed=repeat)
+        LLM-->>REV: reply text, model, latency
+        REV->>REV: parse_review, drop ungrounded fields
+        REV-->>RUN: findings and last_meta
+        RUN->>FS: raw/analyzer/sample__rK.json with sample_sha256
+    end
+    RUN->>FS: manifest.json with versions and skipped tools
+    E->>CLI: score --results results --markdown report.md
+    CLI->>RUN: load_results(results, samples)
+    RUN-->>CLI: Results, stale files refused
+    CLI->>SCO: score(results, samples, tol, strict)
+    SCO-->>CLI: Scoreboard
+    CLI->>FS: report.md from to_markdown
+```
+
 ---
 
 ## 5. The labelled corpus
 
 **Purpose.** Give each analyzer the same code with known problems.
+
+```mermaid
+flowchart TD
+    MAN[/"manifest.json"/] --> EACH["For each sample entry"]
+    EACH --> FILE{"Sample file exists?"}
+    FILE -- "no" --> PROB["Add a problem"]
+    FILE -- "yes" --> ANC{"Each label anchor<br/>occurs exactly once?"}
+    ANC -- "no" --> PROB
+    ANC -- "yes" --> SPAN{"Anchor line + span - 1<br/>inside the file?"}
+    SPAN -- "no" --> PROB
+    SPAN -- "yes" --> LBL["Label: category, rule,<br/>line_start, line_end"]
+    LBL --> CHK["check_corpus: ids, kinds, styles,<br/>difficulties, syntax"]
+    CHK --> AST{"Same syntax tree as another<br/>sample, docstrings removed?"}
+    AST -- "yes" --> PROB
+    AST -- "no" --> RUL{"Clean has no labels, other kinds have labels,<br/>rule in its category, buggy has a test?"}
+    RUL -- "no" --> PROB
+    RUL -- "yes" --> OK[/"list of Sample"/]
+    PROB --> ERR[/"CorpusError with all problems"/]
+```
 
 | Kind | Samples | Labels | Contents |
 |---|---|---|---|
@@ -283,6 +442,19 @@ The three algorithm problems of the earlier study stay in the corpus: valid anag
 
 **Purpose.** Run each SAST tool in the same way and change its output into findings.
 
+```mermaid
+flowchart LR
+    S[/"Sample file"/] --> AV{"available:<br/>module or command found?"}
+    AV -- "no" --> SKIP["Runner skips the tool"]
+    AV -- "yes" --> RUN["_run: tool command with JSON output,<br/>120 s limit, 300 s for semgrep"]
+    RUN --> PARSE["parse_bandit, parse_pylint,<br/>parse_ruff or parse_semgrep"]
+    PARSE --> DROP{"Import note or<br/>environment message?"}
+    DROP -- "yes" --> X["Drop"]
+    DROP -- "no" --> MAP["Map the tool id to a canonical rule:<br/>BANDIT_RULES, PYLINT_RULES, RUFF_RULES, CWE"]
+    MAP --> CAT["Category from the rule:<br/>CWE security, SMELL maintainability, BUG correctness"]
+    CAT --> F[/"Finding: lines, rule,<br/>severity, message, tool id"/]
+```
+
 | Analyzer | How it runs | Rule mapping |
 |---|---|---|
 | `builtin` | In process, Python `ast` | 16 rules, direct canonical ids |
@@ -293,6 +465,40 @@ The three algorithm problems of the earlier study stay in the corpus: valid anag
 | `semgrep` | `semgrep --config p/python --json` | CWE in the rule metadata |
 
 **The builtin rules**
+
+```mermaid
+flowchart LR
+    CODE[/"Python source"/] --> AST["ast.parse"]
+    AST --> V["_Visitor walks the tree"]
+    V --> FD["visit_FunctionDef: mutable defaults,<br/>shadowed builtins, unused locals, nesting depth"]
+    V --> CL["visit_Call: eval, os.system, shell=True,<br/>pickle, weak hash, random, mktemp,<br/>verify=False, execute, os.path.join"]
+    V --> AS["visit_Assign: credential names,<br/>shadowed builtins"]
+    V --> EH["visit_ExceptHandler: bare except"]
+    V --> AT["visit_Assert: assert in an<br/>admin or auth function"]
+    FD --> U["Remove duplicates by<br/>rule and lines, sort"]
+    CL --> U
+    AS --> U
+    EH --> U
+    AT --> U
+    U --> OUT[/"Findings with canonical rule ids"/]
+```
+
+The `tests` analyzer runs the unit tests of the manifest:
+
+```mermaid
+flowchart LR
+    S[/"Sample and its unit tests"/] --> T{"Tests present?"}
+    T -- "no" --> NONE[/"No findings"/]
+    T -- "yes" --> CP["Child process: python -I,<br/>PYTHONHASHSEED=0, 20 s limit"]
+    CP --> RC{"Exit code 0?"}
+    RC -- "no" --> ALL["Each test fails<br/>with the last error line"]
+    RC -- "yes" --> CMP["Compare each result<br/>with the expected value"]
+    CMP --> FAIL{"Test failed?<br/>first failure of each function"}
+    ALL --> FAIL
+    FAIL -- "yes" --> SPAN["_function_span:<br/>lines of the function"]
+    SPAN --> F[/"Finding: correctness,<br/>BUG-test-failure"/]
+    FAIL -- "no" --> NONE
+```
 
 | Rule | Trigger |
 |---|---|
@@ -324,6 +530,24 @@ The three algorithm problems of the earlier study stay in the corpus: valid anag
 ## 7. The LLM reviewer
 
 **Purpose.** Ask an LLM for findings in the same form as a SAST tool, with full provenance.
+
+```mermaid
+flowchart TD
+    S[/"Sample, repeat number"/] --> P["render_user_prompt:<br/>code with line numbers"]
+    P --> C["client.complete: system review_v1,<br/>seed = repeat"]
+    C -- "LLMError" --> E[/"No findings,<br/>error in last_meta"/]
+    C --> J{"_json_from_text: JSON found,<br/>also in a code fence?"}
+    J -- "no" --> PE[/"No findings, parse_error"/]
+    J -- "yes" --> TOP["Each top-level key other than findings:<br/>ungrounded field"]
+    TOP --> EACH["For each finding item"]
+    EACH --> FLD["Each key outside the 6 allowed fields:<br/>ungrounded field"]
+    FLD --> CAT{"Known category, valid line<br/>inside the file?"}
+    CAT -- "no" --> DR["Drop, record the reason"]
+    CAT -- "yes" --> RULE["_canonical_rule: CWE text to CWE-n,<br/>unknown rule to None"]
+    RULE --> F[/"Finding"/]
+    F --> META[/"last_meta: model, latency, temperature,<br/>prompt version and SHA, ungrounded, dropped"/]
+    DR --> META
+```
 
 | Input | Output |
 |---|---|
@@ -357,6 +581,23 @@ The three algorithm problems of the earlier study stay in the corpus: valid anag
 
 **Purpose.** Change findings into comparable numbers.
 
+```mermaid
+flowchart TD
+    IN[/"Labels and findings of one sample"/] --> PAIR["All label and finding pairs"]
+    PAIR --> C1{"Same category?"}
+    C1 -- "no" --> OUTP["Not a pair"]
+    C1 -- "yes" --> C2{"Lines overlap after<br/>tol lines on each side?"}
+    C2 -- "no" --> OUTP
+    C2 -- "yes" --> C3{"--strict?"}
+    C3 -- "no" --> KEEP["Keep the pair"]
+    C3 -- "yes" --> C4{"Same rule family, or BUG-test-failure<br/>or BUG-other on a correctness label?"}
+    C4 -- "no" --> OUTP
+    C4 -- "yes" --> KEEP
+    KEEP --> SORT["Sort the pairs by line distance"]
+    SORT --> GREEDY["Accept a pair if its label<br/>and its finding are both free"]
+    GREEDY --> RES[/"TP pairs, FP unused findings,<br/>FN unused labels"/]
+```
+
 **Procedure**
 
 1. For each sample, list all pairs of a label and a finding with the same category.
@@ -365,6 +606,22 @@ The three algorithm problems of the earlier study stay in the corpus: valid anag
 4. In `--strict` mode, `BUG-test-failure` and `BUG-other` match each correctness label.
 5. Sort the pairs by line distance. Accept a pair if its label and its finding are both still free.
 6. Count true positives, false positives and false negatives for each analyzer and category.
+
+```mermaid
+flowchart LR
+    R[/"Results and samples"/] --> CNT["_counts: match on repeat 0,<br/>all categories and each category"]
+    CNT --> PRF["prf: precision, recall, F1,<br/>Wilson intervals"]
+    R --> CLN["Clean controls with<br/>one or more findings"]
+    R --> SLC["9 algorithm samples<br/>by difficulty and by style"]
+    R --> CON{"More than 1 repeat?"}
+    CON -- "yes" --> JAC["Mean pairwise Jaccard of Finding.key,<br/>F1 of each repeat"]
+    R --> QL["LLM metadata: ungrounded fields,<br/>dropped, parse errors, latency"]
+    PRF --> MD[/"to_markdown: score report"/]
+    CLN --> MD
+    SLC --> MD
+    JAC --> MD
+    QL --> MD
+```
 
 | Report table | Contents |
 |---|---|
@@ -380,6 +637,28 @@ The three algorithm problems of the earlier study stay in the corpus: valid anag
 
 **Purpose.** Measure if an LLM step removes false positives from SAST findings.
 
+```mermaid
+flowchart TD
+    R[/"Stored results, --analyzer"/] --> HAS{"Results for this analyzer?"}
+    HAS -- "no" --> KE[/"KeyError"/]
+    HAS -- "yes" --> CL{"SAST_LLM_PROVIDER"}
+    CL -- "simulated or none" --> ST["SimulatedTriage:<br/>keep if builtin agrees within 2 lines"]
+    CL -- "openai or gemini" --> LC["build_llm client"]
+    ST --> EACH
+    LC --> EACH["For each sample: repeat-0 findings"]
+    EACH --> EMPTY{"Any findings?"}
+    EMPTY -- "no" --> KEPT["Kept list is empty"]
+    EMPTY -- "yes" --> CALL["TRIAGE_PROMPT_V1 with the code<br/>and the numbered findings"]
+    CALL -- "LLMError" --> ALL["Keep all findings"]
+    CALL --> PK{"parse_keep:<br/>keep list readable?"}
+    PK -- "no" --> ALL
+    PK -- "yes" --> SEL["Keep the listed findings"]
+    SEL --> M["match before and after"]
+    ALL --> M
+    KEPT --> M
+    M --> OUT[/"HybridResult: prf before and after"/]
+```
+
 **Procedure**
 
 1. Read the repeat-0 findings of one analyzer.
@@ -390,13 +669,34 @@ The three algorithm problems of the earlier study stay in the corpus: valid anag
 **Rules**
 
 - If the LLM call fails, the triage keeps all findings.
-- With the `simulated` provider, `SimulatedTriage` keeps a finding only if `builtin` reports the same category within 2 lines. It is not a language model.
+- With the `simulated` or `none` provider, `SimulatedTriage` keeps a finding only if `builtin` reports the same category within 2 lines. It is not a language model.
 
 ---
 
 ## 10. Blinded human rating
 
 **Purpose.** Measure usefulness without the effect of a known reviewer name.
+
+```mermaid
+flowchart TD
+    R[/"Stored results"/] --> COL["For each sample and analyzer:<br/>render_review of repeat 0"]
+    COL --> SHUF["random.Random(seed).shuffle"]
+    SHUF --> IDS["Item ids R0001, R0002 and on"]
+    IDS --> CSV[("ratings.csv: item, sample,<br/>file, review, empty rating")]
+    IDS --> KEY[("ratings_key.json:<br/>item id to analyzer")]
+    CSV --> HUMAN{{"HUMAN<br/>raters fill usefulness_1_to_5,<br/>without the key"}}
+    HUMAN --> READ["score_sheet reads each row"]
+    KEY --> READ
+    READ --> EMPTY{"Rating empty?"}
+    EMPTY -- "yes" --> SKIP["Skip the row"]
+    EMPTY -- "no" --> RANGE{"1 to 5, and the item<br/>in the key?"}
+    RANGE -- "no" --> ERR[/"ValueError or KeyError"/]
+    RANGE -- "yes" --> AGG["Group by analyzer"]
+    AGG --> OUT[/"Count, mean, 95 % interval<br/>for each analyzer"/]
+
+    classDef human fill:#fff3cd,stroke:#b8901f,color:#3d2f00,font-weight:bold
+    class HUMAN human
+```
 
 **Procedure**
 
@@ -415,13 +715,35 @@ The three algorithm problems of the earlier study stay in the corpus: valid anag
 
 ## 11. The CLI
 
+```mermaid
+flowchart LR
+    MAIN["main: load_dotenv --env-file,<br/>Settings.from_env"] --> CMD{"Command"}
+    CMD -- "corpus" --> C1["load_corpus, corpus_summary"]
+    CMD -- "analyze" --> C2["analyze_code on one file"]
+    CMD -- "run" --> C3["build_analyzers, run_benchmark"]
+    CMD -- "score" --> C4["load_results, score, to_markdown"]
+    CMD -- "hybrid" --> C5["load_results, evaluate_hybrid"]
+    CMD -- "blind-sheet" --> C6["load_results, make_sheet"]
+    CMD -- "blind-score" --> C7["score_sheet"]
+    CMD -- "demo" --> C8["builtin, tests, simulated reviewer<br/>in a temporary folder"]
+    C1 --> OK[/"exit code 0"/]
+    C2 --> OK
+    C3 --> OK
+    C4 --> OK
+    C5 --> OK
+    C6 --> OK
+    C7 --> OK
+    C8 --> OK
+    MAIN -. "ConfigError, CorpusError, StaleResultError,<br/>LLMError, FileNotFoundError, KeyError, ValueError" .-> ERR[/"error: message, exit code 1"/]
+```
+
 | Command | What it does |
 |---|---|
 | `sast-vs-llm corpus [--list] [--corpus D]` | Validate the corpus and print a summary |
 | `sast-vs-llm analyze FILE` | Run the `builtin` analyzer on any Python file |
 | `sast-vs-llm run [--analyzers L] [--repeats N] [--out D] [--corpus D]` | Run analyzers and write raw results |
 | `sast-vs-llm score [--results D] [--strict] [--tol N] [--markdown F] [--allow-stale]` | Score stored results |
-| `sast-vs-llm hybrid --analyzer A [--results D] [--strict]` | Measure LLM triage on one analyzer |
+| `sast-vs-llm hybrid [--analyzer A] [--results D] [--strict]` | Measure LLM triage on one analyzer (default `bandit`) |
 | `sast-vs-llm blind-sheet [--results D] [--sheet F] [--key F] [--seed N]` | Write the blinded rating sheet and key |
 | `sast-vs-llm blind-score [--sheet F] [--key F]` | Score a filled rating sheet |
 | `sast-vs-llm demo` | Offline demo: `builtin`, `tests` and the simulated reviewer |
@@ -435,6 +757,22 @@ The three algorithm problems of the earlier study stay in the corpus: valid anag
 ---
 
 ## 12. The decision rules
+
+The diagram shows the step where each rule acts.
+
+```mermaid
+flowchart LR
+    CFG["config.py: provider simulated,<br/>repeats 3, temperature 0"] --> REV["LLM reviewer"]
+    BI["builtin: MAX_NESTING 4,<br/>credential length 6"] --> AN["Static analyzers"]
+    UT["unit_tests: 20 s limit"] --> AN
+    REV --> RAW[("Raw results")]
+    AN --> RAW
+    RAW --> MAT["matching.match:<br/>tol 2, strict off, RULE_FAMILY"]
+    MAT --> MET["metrics.wilson: 95 % interval"]
+    RAW --> KEY["Finding.key: category,<br/>rule family, line // 3"]
+    KEY --> CONS[/"Consistency over repeats"/]
+    MET --> REP[/"Score report"/]
+```
 
 | Rule | Value | Location |
 |---|---|---|
@@ -514,6 +852,19 @@ sast-vs-llm score --results results
 sast-vs-llm hybrid --results results --analyzer pylint
 sast-vs-llm blind-sheet --results results
 sast-vs-llm blind-score
+```
+
+```mermaid
+flowchart LR
+    ENV["Set the provider in .env"] --> RUN["run --analyzers ... llm"]
+    RUN --> SC["score"]
+    RUN --> HY["hybrid --analyzer pylint"]
+    RUN --> BS["blind-sheet"]
+    BS --> HUMAN{{"HUMAN<br/>raters fill ratings.csv"}}
+    HUMAN --> BSC["blind-score"]
+
+    classDef human fill:#fff3cd,stroke:#b8901f,color:#3d2f00,font-weight:bold
+    class HUMAN human
 ```
 
 ### 14.4 Environment variables
